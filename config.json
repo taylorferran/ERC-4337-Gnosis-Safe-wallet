@@ -1,0 +1,8 @@
+{
+  "bundlerUrl": "https://node.stackup.sh/v1/rpc/80c044c14a80876a26c45e92988bfb61491a77e45e8f1c6c26d473b45ca2a0d0",
+  "rpcUrl": "https://eth-goerli.g.alchemy.com/v2/dYfnm53DsDD80Wmr3foRg5j8Y09i1XRv",
+  "signingKey": "0x5941a7046634538724beadb5df3e925beed124af839de7f6b66c2f35262dc817",
+  "entryPoint": "0x0576a174D229E3cFA37253523E645A78A0C91B57",
+  "simpleAccountFactory": "0x71D63edCdA95C61D6235552b5Bc74E32d8e2527B",
+  "paymasterUrl": ""
+}
