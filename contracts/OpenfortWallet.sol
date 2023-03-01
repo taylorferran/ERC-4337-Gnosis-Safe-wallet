@@ -36,7 +36,7 @@ contract OpenfortWallet is GnosisSafe {
     /// @param payment Value that should be paid
     /// @param paymentReceiver Address that should receive the payment (or 0 if tx.origin)
     /// @param _entryPoint Address for the trusted EIP4337 entrypoint
-    function setupWithEntrypoint(
+    function setupWalletAndEntryPoint(
         address[] calldata _owners,
         uint256 _threshold,
         address to,
@@ -46,7 +46,7 @@ contract OpenfortWallet is GnosisSafe {
         uint256 payment,
         address payable paymentReceiver,
         address _entryPoint
-    ) external {
+    ) public {
         entryPoint = _entryPoint;
         
         execute(address(this), 0, 
@@ -130,7 +130,7 @@ contract OpenfortWallet is GnosisSafe {
 
     /// @dev Update trusted entry point
     function updateEntryPoint(address _entryPoint) 
-    external authorized {
+    external {
         entryPoint = _entryPoint;
     }
 

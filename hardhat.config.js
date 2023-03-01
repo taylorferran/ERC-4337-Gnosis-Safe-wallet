@@ -18,7 +18,7 @@ module.exports = {
 },
 
   networks: {
-    goerli: {
+    mumbai: {
       url: GOERLI_RPC_URL,
       accounts: [PRIVATE_KEY],
     },
