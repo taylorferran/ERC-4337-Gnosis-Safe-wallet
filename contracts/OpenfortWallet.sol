@@ -7,6 +7,9 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 error EntryPointInvalid();
 error InvalidNonce();
+error NotOwner();
+error ContractHasInitCode();
+error SignatureFailed();
 
 /// @title Openfort EIP-4337 compatible multisig wallet 
 /// @dev https://eips.ethereum.org/EIPS/eip-4337
@@ -16,7 +19,6 @@ contract OpenfortWallet is GnosisSafe {
 
     //EIP4337 entrypoint
     address public entryPoint;
-
     uint256 immutable VALIDATION_FAILED = 1;
 
     struct SafeTransaction {
@@ -26,6 +28,23 @@ contract OpenfortWallet is GnosisSafe {
         Enum.Operation operation;
     }
 
+    // debug to be removed
+    uint256 public test;
+    address x;
+    address y;
+
+    function getTest() public view returns (uint256) {
+        return test;
+    }
+
+    function getX() public view returns (address) {
+        return x;
+    }
+
+    function getY() public view returns (address) {
+        return y;
+    }
+ 
     /// @dev Setup function sets initial storage of contract.
     /// @param _owners List of Safe owners.
     /// @param _threshold Number of required confirmations for a Safe transaction.
@@ -49,6 +68,7 @@ contract OpenfortWallet is GnosisSafe {
     ) external {
         entryPoint = _entryPoint;
         
+        /*
         execute(address(this), 0, 
             abi.encodeCall(GnosisSafe.setup, (
                 _owners, _threshold,
@@ -57,7 +77,14 @@ contract OpenfortWallet is GnosisSafe {
                 payment, paymentReceiver 
             )),
             Enum.Operation.DelegateCall, type(uint256).max
-        );
+        );*/
+
+        // Setup single wallet for testing for now. 
+        // might need the code above to implement proxy later
+        this.setup(_owners, _threshold,
+                to, data,
+                fallbackHandler,paymentToken, 
+                payment, paymentReceiver);
         ++nonce;
     }
 
@@ -66,25 +93,34 @@ contract OpenfortWallet is GnosisSafe {
     /// @param userOpHash Hash of the user operation
     /// @param missingAccountFunds Amount to pay entryPoint for transaction execution
     function validateUserOp(UserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds) 
-    external returns(uint256 validation) { 
+    external returns(uint256 sigTimeRange) { 
 
+        requireFromEntryPoint();
         if(userOp.initCode.length == 0){
-            requireFromEntryPoint();
             bytes32 messageHash = userOpHash.toEthSignedMessageHash();
+
+            (x,y) = this.checkNSignatures(messageHash, bytes(abi.encode(userOp)), 
+                userOp.signature, threshold);
 
             try this.checkNSignatures(messageHash, bytes(abi.encode(userOp)), 
                 userOp.signature, threshold){
                 if(++nonce != userOp.nonce)
                     revert InvalidNonce();
             } catch {
-                validation = VALIDATION_FAILED;              
+                sigTimeRange = VALIDATION_FAILED;
+                // Only included for testing purposes
+                revert SignatureFailed();
             }
 
             if(missingAccountFunds > 0) {
                 (bool success,) = payable(entryPoint).call{value : missingAccountFunds, gas : type(uint256).max}("");
                 require(success);
             }
+        } else {
+            // Included for testing
+            revert ContractHasInitCode();
         }
+        
     }
 
     /// @dev Entry point calls this to make our account execute transactions after verification
@@ -130,7 +166,9 @@ contract OpenfortWallet is GnosisSafe {
 
     /// @dev Update trusted entry point
     function updateEntryPoint(address _entryPoint) 
-    external authorized {
+    external {
+        if(!isOwner(msg.sender))
+            revert NotOwner();
         entryPoint = _entryPoint;
     }
 
@@ -139,4 +177,5 @@ contract OpenfortWallet is GnosisSafe {
         if(msg.sender != entryPoint)
             revert EntryPointInvalid();
     }
+
 }
