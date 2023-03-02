@@ -189,7 +189,7 @@ describe("Openfort EIP4337 wallet testing", function () {
     expect(true);
     });
 
-    it.skip("executeUserOperationAsEntryPoint to remove an owner", async function () {
+    it("executeUserOperationAsEntryPoint to remove an owner", async function () {
       const { openfortWallet, openfortWalletFactory, random1, entryPoint, firstOwner, secondOwner } = await loadFixture(deployAndSetupAccount);
       const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl);
       const paymasterAPI = undefined
@@ -256,7 +256,7 @@ describe("Openfort EIP4337 wallet testing", function () {
 
     });
 
-    it.skip("executeUserOperationAsEntryPoint as delegate call", async function () {
+    it("executeUserOperationAsEntryPoint as delegate call", async function () {
       const { openfortWallet, openfortWalletFactory, random1, entryPoint, firstOwner, secondOwner } = await loadFixture(deployAndSetupAccount);
       const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl);
       const paymasterAPI = undefined
