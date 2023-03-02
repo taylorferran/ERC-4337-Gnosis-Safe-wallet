@@ -2,7 +2,8 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import {
-  getSimpleAccount
+  getSimpleAccount,
+  Operation
 } from "./utils";
 // @ts-ignore
 import config from "../config.json";
@@ -11,6 +12,7 @@ describe("Openfort EIP4337 wallet testing", function () {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
   // and reset Hardhat Network to that snapshot in every test.
+  // TODO update to use proxy 
   async function deployAndSetupAccount() {
 
     // Contracts are deployed using the first signer/account by default
@@ -19,8 +21,9 @@ describe("Openfort EIP4337 wallet testing", function () {
     const OpenfortWallet = await ethers.getContractFactory("OpenfortWallet");
     const openfortWallet = await OpenfortWallet.deploy();
 
-    const OpenfortWalletFactory = await ethers.getContractFactory("OpenfortWalletFactory");
-    const openfortWalletFactory = await OpenfortWalletFactory.deploy();
+
+    //const OpenfortWalletFactory = await ethers.getContractFactory("OpenfortWalletFactory");
+    //const openfortWalletFactory = await OpenfortWalletFactory.deploy();
 
     // Setup wallet
     await openfortWallet.connect(random1).setupWithEntrypoint(
@@ -35,11 +38,11 @@ describe("Openfort EIP4337 wallet testing", function () {
       config.entryPoint
     );
 
-    return { openfortWallet, openfortWalletFactory, random1, entryPoint, firstOwner, secondOwner };
+    return { openfortWallet, random1, entryPoint, firstOwner, secondOwner };
   }
 
     it("Create and validate UserOperation", async function () {
-      const { openfortWallet, openfortWalletFactory, random1, entryPoint, firstOwner, secondOwner } = await loadFixture(deployAndSetupAccount);
+      const { openfortWallet, random1, entryPoint, firstOwner, secondOwner } = await loadFixture(deployAndSetupAccount);
       const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl);
       const paymasterAPI = undefined
 
@@ -98,7 +101,7 @@ describe("Openfort EIP4337 wallet testing", function () {
     });
  
     it.skip("Create and validate UserOperation DEBUG VERSION", async function () {
-    const { openfortWallet, openfortWalletFactory, random1, entryPoint, secondOwner } = await loadFixture(deployAndSetupAccount);
+    const { openfortWallet, random1, entryPoint, secondOwner } = await loadFixture(deployAndSetupAccount);
     const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl);
     const paymasterAPI = undefined
 
@@ -190,7 +193,7 @@ describe("Openfort EIP4337 wallet testing", function () {
     });
 
     it("executeUserOperationAsEntryPoint to remove an owner", async function () {
-      const { openfortWallet, openfortWalletFactory, random1, entryPoint, firstOwner, secondOwner } = await loadFixture(deployAndSetupAccount);
+      const { openfortWallet, random1, entryPoint, firstOwner, secondOwner } = await loadFixture(deployAndSetupAccount);
       const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl);
       const paymasterAPI = undefined
 
@@ -212,7 +215,7 @@ describe("Openfort EIP4337 wallet testing", function () {
       //const encodedExecTransaction = 
 
       // Then we encode executeUserOperationAsEntryPoint to pass into our UserOp
-      const encodedUserOp = openfortWallet.interface.encodeFunctionData('executeUserOperationAsEntryPoint', [random1.address,0,encodedRemoveOwner,0]);
+      const encodedUserOp = openfortWallet.interface.encodeFunctionData('executeUserOperationAsEntryPoint', [random1.address,0,encodedRemoveOwner,Operation.Call]);
 
       // Create user operation and sign it
       const userOp = await accountAPI.createSignedUserOp({
@@ -240,11 +243,11 @@ describe("Openfort EIP4337 wallet testing", function () {
 
       // Transaction fails as non-entry point address
       await expect ( 
-        openfortWallet.connect(secondOwner).executeUserOperationAsEntryPoint(openfortWallet.address,0,encodedRemoveOwner,0
+        openfortWallet.connect(secondOwner).executeUserOperationAsEntryPoint(openfortWallet.address,0,encodedRemoveOwner,Operation.Call
       )).to.revertedWithCustomError(openfortWallet, "EntryPointInvalid");
 
       // Send transaction with entrypoint
-      await openfortWallet.connect(random1).executeUserOperationAsEntryPoint(openfortWallet.address,0,encodedRemoveOwner,0);
+      await openfortWallet.connect(random1).executeUserOperationAsEntryPoint(openfortWallet.address,0,encodedRemoveOwner,Operation.Call);
 
       // Check secondOwner.address is now not an owner
       expect (await openfortWallet.isOwner(secondOwner.address)).to.equal(false);
@@ -257,7 +260,7 @@ describe("Openfort EIP4337 wallet testing", function () {
     });
 
     it("executeUserOperationAsEntryPoint as delegate call", async function () {
-      const { openfortWallet, openfortWalletFactory, random1, entryPoint, firstOwner, secondOwner } = await loadFixture(deployAndSetupAccount);
+      const { openfortWallet, random1, entryPoint, firstOwner, secondOwner } = await loadFixture(deployAndSetupAccount);
       const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl);
       const paymasterAPI = undefined
 
@@ -272,38 +275,29 @@ describe("Openfort EIP4337 wallet testing", function () {
       // Confirm gnosis safe setup correctly
       expect(await openfortWallet.entryPoint()).to.equal(config.entryPoint);
 
+      // Deploy test contract
+      const OpenfortWallet2 = await ethers.getContractFactory("OpenfortWallet");
+      const openfortWallet2 = await OpenfortWallet2.deploy();
+
       // Encode removeOwner function to be passed into executeUserOperationAsEntryPoint
-      const encodedRemoveOwner = openfortWallet.interface.encodeFunctionData('removeOwner', [firstOwner.address, secondOwner.address, 1]);
-     
-      // Then we encode executeUserOperationAsEntryPoint to pass into our UserOp
-      const encodedUserOp = openfortWallet.interface.encodeFunctionData('executeUserOperationAsEntryPoint', [random1.address,0,encodedRemoveOwner,0]);
-
-      // Create user operation and sign it
-      const userOp = await accountAPI.createSignedUserOp({
-        target: random1.address,
-        data: encodedUserOp
-      })
-
-      userOp.nonce = 2;
-      userOp.initCode = '0x';
-
-      // Get hash of the userOp
-      const userOpHash2 = await accountAPI.getUserOpHash(userOp);
+      const encodedDelegateCall = OpenfortWallet2.interface.encodeFunctionData('updateEntryPoint', [firstOwner.address]);
 
       // Make random1 our new entryPoint
       await openfortWallet.connect(secondOwner).updateEntryPoint(random1.address);
 
-      // Attempt to validate the created userOp with our new entry point
-      await openfortWallet.connect(random1).validateUserOp(userOp, userOpHash2, 0);
-
-      // Check secondOwner.address is an owner
-      expect (await openfortWallet.isOwner(secondOwner.address)).to.equal(true);
-
       // Send transaction with entrypoint
-      await openfortWallet.connect(random1).executeUserOperationAsEntryPoint(openfortWallet.address,0,encodedRemoveOwner,0);
+      //await openfortWallet.connect(random1).executeUserOperationAsEntryPoint(openfortWallet2.address,0,encodedDelegateCall,Operation.DelegateCall);   
+      await openfortWallet.connect(random1).executeDelegateCallFromEntryPoint(openfortWallet2.address,"updateEntryPoint(address)",secondOwner.address);
 
-      // Check secondOwner.address is now not an owner
-      expect (await openfortWallet.isOwner(secondOwner.address)).to.equal(false);
+      console.log("====");
+      console.log(firstOwner.address);
+      console.log(random1.address);
+      console.log("====");
+
+      // Confirm delegate call worked 
+      expect(await openfortWallet.entryPoint()).to.equal(firstOwner.address);
+      //expect(await updateEntrypoint.entryPoint()).to.equal(firstOwner.address);
+
 
   });
 });

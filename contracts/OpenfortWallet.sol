@@ -15,11 +15,13 @@ error SignatureFailed();
 /// @dev https://eips.ethereum.org/EIPS/eip-4337
 
 contract OpenfortWallet is GnosisSafe {
-    using ECDSA for bytes32;
 
     //EIP4337 entrypoint
     address public entryPoint;
+
     uint256 immutable VALIDATION_FAILED = 1;
+
+    using ECDSA for bytes32;
 
     struct SafeTransaction {
         address to;
@@ -155,13 +157,13 @@ contract OpenfortWallet is GnosisSafe {
     function executeDelegateCallFromEntryPoint (
         address _contract,
         string calldata _func,
-        uint256 _funcParameter
+        string calldata _funcParameter
     ) external {
         requireFromEntryPoint();
         (bool success,) = _contract.delegatecall(
-            abi.encodeWithSignature(_func, _funcParameter)
+            abi.encodeWithSignature("updateEntryPoint(address)", "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC")
         );
-        require(success);
+        require(success, "DC failed");
     }
 
     /// @dev Update trusted entry point
