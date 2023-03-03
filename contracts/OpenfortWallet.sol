@@ -3,7 +3,6 @@ pragma solidity ^0.8.12;
 
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 import "@account-abstraction/contracts/core/BaseAccount.sol";
-import "@gnosis.pm/zodiac/contracts/core/Module.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 error EntryPointInvalid();
@@ -140,7 +139,9 @@ contract OpenfortWallet is GnosisSafe {
     }
 
     // Make entrypoint do this too maybe
-    function enableModule(address _module) external {
+    function enableModuleAsOwner(address _module) public {
+        //if(!isOwner(msg.sender))
+        //    revert NotOwner();
         enableModule(_module);
     }
 

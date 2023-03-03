@@ -33,19 +33,19 @@ contract TestModule {
         safeWallet = _safeWallet;
     }
 
-    function triggerPayment(uint256 _coins) public {
-        require(_sender = msg.sender);
-
+    function triggerPayment() public {
+        
+        require(sender == msg.sender);
         coins += coinsPerTxn;
 
         // revert if the payment period has not elapsed
-        uint256 lastPayment = lastPayments[_receiver];
+        uint256 lastPayment = lastPayments[safeWallet];
         if (block.timestamp < lastPayment + period) {
             revert("Payment period has not elapsed");
         }
 
         // pay the subscription fee
-        GnosisSafe safe = GnosisSafe(_safeWallet);
+        GnosisSafe safe = GnosisSafe(safeWallet);
         bool success = safe.execTransactionFromModule(
             address(this),
             price,
@@ -57,10 +57,13 @@ contract TestModule {
             revert("Payment failed");
         }
 
-        lastPayments[_safeWallet] = block.timestamp;
+        lastPayments[safeWallet] = block.timestamp;
     }
 
-    // meant to be delegate called
+    function getCoins() public view returns (uint256) {
+        return coins;
+    }
+
     function transferETH() payable public {
         (bool sent, ) = sender.call{value: msg.value}("");
         require(sent, "Failed to send Ether");

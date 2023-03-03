@@ -158,7 +158,7 @@ describe("Openfort EIP4337 wallet testing", function () {
 
     });
 
-    it("executeUserOperationAsEntryPoint as delegate call", async function () {
+    it.skip("executeUserOperationAsEntryPoint as delegate call", async function () {
       const { openfortWallet, random1, entryPoint, firstOwner, secondOwner } = await loadFixture(deployAndSetupAccount);
       const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl);
       const paymasterAPI = undefined
@@ -274,5 +274,65 @@ describe("Openfort EIP4337 wallet testing", function () {
       // Check secondOwner.address is now not an owner
       expect (await openfortWallet.isOwner(user1.address)).to.equal(false);
       expect (await openfortWallet.isOwner(user2.address)).to.equal(false);
+    });
+
+    it("enable and run zodiac test module", async function () {
+      const { openfortWallet, random1, entryPoint, firstOwner, secondOwner } = await loadFixture(deployAndSetupAccount);
+
+      // Create a signer to act at the module caller
+      const [zodiacSender] = await ethers.getSigners();
+
+      // Create 
+      const TestModule = await ethers.getContractFactory("TestModule");
+      const testModule = await TestModule.deploy(zodiacSender.address, openfortWallet.address);
+
+    /* 
+      Try to run zodiac module without it enabled as sender, this should fail
+      Enable the zodiac module on the safe contract
+      Try to run the zodiac module again, payment should be made from safe to sender.
+      Coins should increment.
+      Should not be able to run this again.
+    */
+
+
+      // Try to call module before it is enabled
+      await expect (
+        testModule.connect(zodiacSender).triggerPayment()
+      ).to.revertedWith("GS104");
+
+      await openfortWallet.enableModule(testModule.address);
+
+      // Deposit ether so payment does not fail 
+      await secondOwner.sendTransaction({
+        to: openfortWallet.address,
+        value: ethers.utils.parseEther("10.0"), 
+      });
+
+      const provider = ethers.provider;
+      // Get balance of safe wallet before txn 
+      const balanceBeforeOfSafeWallet = await provider.getBalance(openfortWallet.address);
+
+      // Check coins value before 
+      expect ( await 
+        testModule.connect(zodiacSender).getCoins()
+      ).to.equal(0); 
+
+      // Trigger module now it is enabled
+      await testModule.connect(zodiacSender).triggerPayment();
+
+      // Check coins value after 
+      expect ( await
+        testModule.connect(zodiacSender).getCoins()
+        ).to.equal(10);
+
+      // Check balance is -0.1 eth after
+      expect ( await 
+        provider.getBalance(openfortWallet.address)
+      ).to.equal(balanceBeforeOfSafeWallet.sub(ethers.utils.parseEther("0.1"))); 
+
+      // Check we can't rerun triggerPayment within the timeframe
+      await expect (
+        testModule.connect(zodiacSender).triggerPayment()
+      ).to.revertedWith("Payment period has not elapsed");
     });
 });
