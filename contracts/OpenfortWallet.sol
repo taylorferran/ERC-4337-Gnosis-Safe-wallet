@@ -3,6 +3,7 @@ pragma solidity ^0.8.12;
 
 import "@gnosis.pm/safe-contracts/contracts/GnosisSafe.sol";
 import "@account-abstraction/contracts/core/BaseAccount.sol";
+import "@gnosis.pm/zodiac/contracts/core/Module.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 error EntryPointInvalid();
@@ -20,7 +21,7 @@ contract OpenfortWallet is GnosisSafe {
 
     //EIP4337 entrypoint
     address public entryPoint;
-
+    // UserOperation failure code
     uint256 immutable VALIDATION_FAILED = 1;
 
     using ECDSA for bytes32;
@@ -110,12 +111,12 @@ contract OpenfortWallet is GnosisSafe {
 
     /// @dev Same as above except for batching 
     function executeMultipleUserOperationsAsEntryPoint (
-        SafeTransaction[] calldata userOperationBatch)
+        SafeTransaction[] calldata transactionBatch)
     external {
         requireFromEntryPoint();
-        for(uint i = 0; i < userOperationBatch.length;) {
-            if(!execute(userOperationBatch[i].to, userOperationBatch[i].value, 
-                userOperationBatch[i].data, userOperationBatch[i].operation, type(uint256).max))
+        for(uint i = 0; i < transactionBatch.length;) {
+            if(!execute(transactionBatch[i].to, transactionBatch[i].value, 
+                transactionBatch[i].data, transactionBatch[i].operation, type(uint256).max))
                 revert BatchTransactionsFailed();
             unchecked {
                 ++i;
@@ -136,6 +137,11 @@ contract OpenfortWallet is GnosisSafe {
         );
         if(!success)
             revert DelegateCallFailed();
+    }
+
+    // Make entrypoint do this too maybe
+    function enableModule(address _module) external {
+        enableModule(_module);
     }
 
     /// @dev Update trusted entry point
