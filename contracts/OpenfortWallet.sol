@@ -13,18 +13,18 @@ error SignatureFailed();
 error DelegateCallFailed();
 error BatchTransactionsFailed();
 
-/// @title Openfort EIP-4337 compatible multisig wallet 
+/// @title Openfort EIP-4337 compatible AA wallet 
 /// @dev https://eips.ethereum.org/EIPS/eip-4337
 
 contract OpenfortWallet is GnosisSafe {
-
-    //EIP4337 entrypoint
-    address public entryPoint;
-    // UserOperation failure code
-    uint256 immutable VALIDATION_FAILED = 1;
-
     using ECDSA for bytes32;
 
+    /// @notice EIP4337 entrypoint
+    address public entryPoint;
+    /// @notice UserOperation failure code
+    uint256 immutable VALIDATION_FAILED = 1;
+
+    /// @dev Used to batch up transactions easier
     struct SafeTransaction {
         address to;
         uint256 value;
@@ -32,7 +32,6 @@ contract OpenfortWallet is GnosisSafe {
         Enum.Operation operation;
     }
 
- 
     /// @dev Setup function sets initial storage of contract.
     /// @param _owners List of Safe owners.
     /// @param _threshold Number of required confirmations for a Safe transaction.
@@ -67,10 +66,10 @@ contract OpenfortWallet is GnosisSafe {
     /// @param userOp User operation passed in by the entry point
     /// @param userOpHash Hash of the user operation
     /// @param missingAccountFunds Amount to pay entryPoint for transaction execution
+    /// May be 0, if there is enough deposited or if user has a paymaster
     /// @return sigTimeRange If signature is invalid return 1, based off of EIP spec
     function validateUserOp(UserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds) 
     external returns(uint256 sigTimeRange) { 
-
         requireFromEntryPoint();
         if(userOp.initCode.length == 0){
             bytes32 messageHash = userOpHash.toEthSignedMessageHash();
@@ -81,8 +80,6 @@ contract OpenfortWallet is GnosisSafe {
                     revert InvalidNonce();
             } catch {
                 sigTimeRange = VALIDATION_FAILED;
-                // Only included for testing purposes
-                revert SignatureFailed();
             }
 
             if(missingAccountFunds > 0 && sigTimeRange == 0) {
@@ -90,13 +87,15 @@ contract OpenfortWallet is GnosisSafe {
                 require(success);
             }
         } else {
-            // Included for testing
             revert ContractHasInitCode();
         }
-        
     }
 
     /// @dev Entry point calls this to make our account execute transactions after verification
+    /// @param to Destination address of txn
+    /// @param value ether value included in txn
+    /// @param data Encoded function txn will try and run 
+    /// @param operation call or delegateCall
     function executeUserOperationAsEntryPoint (
         address to,
         uint256 value,
@@ -108,7 +107,9 @@ contract OpenfortWallet is GnosisSafe {
         execute(to, value, data, operation, type(uint256).max);
     }
 
-    /// @dev Same as above except for batching 
+    /// @dev Same as above except for batching purposes
+    /// @dev Numerous transactions will be bundled up and signed at the same time then validated above
+    /// @dev once validated, the entrypoint can call this function to run them all atomically
     function executeMultipleUserOperationsAsEntryPoint (
         SafeTransaction[] calldata transactionBatch)
     external {
@@ -136,13 +137,6 @@ contract OpenfortWallet is GnosisSafe {
         );
         if(!success)
             revert DelegateCallFailed();
-    }
-
-    // Make entrypoint do this too maybe
-    function enableModuleAsOwner(address _module) public {
-        //if(!isOwner(msg.sender))
-        //    revert NotOwner();
-        enableModule(_module);
     }
 
     /// @dev Update trusted entry point

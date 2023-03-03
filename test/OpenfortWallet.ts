@@ -286,15 +286,6 @@ describe("Openfort EIP4337 wallet testing", function () {
       const TestModule = await ethers.getContractFactory("TestModule");
       const testModule = await TestModule.deploy(zodiacSender.address, openfortWallet.address);
 
-    /* 
-      Try to run zodiac module without it enabled as sender, this should fail
-      Enable the zodiac module on the safe contract
-      Try to run the zodiac module again, payment should be made from safe to sender.
-      Coins should increment.
-      Should not be able to run this again.
-    */
-
-
       // Try to call module before it is enabled
       await expect (
         testModule.connect(zodiacSender).triggerPayment()
@@ -334,5 +325,66 @@ describe("Openfort EIP4337 wallet testing", function () {
       await expect (
         testModule.connect(zodiacSender).triggerPayment()
       ).to.revertedWith("Payment period has not elapsed");
+    });
+
+    it("Deploy wallet using SafeProxy", async function () {
+      const { openfortWallet, firstOwner, secondOwner, random1} = await loadFixture(deployAndSetupAccount);
+
+      // First deploy our base contract
+      // Then use the proxy factory to create an instance of this and do the GnosisSafe setup within 
+      // once function so that we do not get front run 
+    
+      // Deploy proxy factory 
+      const OpenfortWalletProxyFactory = await ethers.getContractFactory("OpenfortWalletProxyFactory");
+      const openfortWalletProxyFactory = await OpenfortWalletProxyFactory.deploy();
+
+      // Encode setup function 
+      const encodedSetup = openfortWallet.interface.encodeFunctionData('setupWithEntrypoint', [
+        [firstOwner.address, secondOwner.address],
+        1,
+        random1.address,
+        "0x",
+        random1.address,
+        random1.address,
+        0,
+        random1.address,
+        config.entryPoint
+      ]);
+
+      // Deploy proxy 
+      await openfortWalletProxyFactory.connect(firstOwner).createProxyWithNonce(openfortWallet.address, encodedSetup, 123);
+
+      // Get address of proxy
+      const OpenfortWalletProxyAddress = await  openfortWalletProxyFactory.connect(firstOwner).getAddress();
+      console.log(OpenfortWalletProxyAddress);
+
+      // Need to suss out making calls to the proxy now
+
+      const encodeGetOwner = openfortWallet.interface.encodeFunctionData('isOwner', [firstOwner.address]);
+      const encodeGetEntryPoint = openfortWallet.interface.encodeFunctionData('getEntryPoint');
+
+      const tx = await 
+      firstOwner.sendTransaction({
+      to: OpenfortWalletProxyAddress,
+      value: 0,
+      data: encodeGetEntryPoint, 
+      });
+
+      console.log(tx );
+
+      /*
+      await expect (
+        firstOwner.sendTransaction({
+        to: OpenfortWalletProxyAddress,
+        value: 0,
+        data: encodeGetOwner, 
+      })).to.equal(true);   
+      */
+      const { data } = tx;
+
+      console.log(config.entryPoint);
+      //console.log("Decoded data: ", await openfortWallet.interface.decodeFunctionData("isOwner", data));
+      console.log("Decoded data: ", await openfortWallet.interface.decodeFunctionData("getEntryPoint", data));
+
     });
 });

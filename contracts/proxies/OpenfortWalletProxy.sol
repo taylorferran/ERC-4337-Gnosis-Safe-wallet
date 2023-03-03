@@ -14,7 +14,9 @@ interface IProxy {
 contract OpenfortWalletProxy {
     // singleton always needs to be first declared variable, to ensure that it is at the same location in the contracts to which calls are delegated.
     // To reduce deployment costs this variable is internal and needs to be retrieved via `getStorageAt`
-    address internal singleton;
+
+    // Public for testing currently, will update for prod
+    address public singleton;
 
     /// @dev Constructor function sets address of singleton contract.
     /// @param _singleton Singleton address.

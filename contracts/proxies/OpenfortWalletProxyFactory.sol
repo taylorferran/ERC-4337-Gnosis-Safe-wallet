@@ -10,6 +10,12 @@ import "./IProxyCreationCallback.sol";
 contract OpenfortWalletProxyFactory {
     event ProxyCreation(OpenfortWalletProxy proxy, address singleton);
 
+    address public proxyAddress;
+
+    function getAddress() public view returns (address) {
+        return proxyAddress;
+    }
+
     /// @dev Allows to retrieve the creation code used for the Proxy deployment. With this it is easily possible to calculate predicted address.
     function proxyCreationCode() public pure returns (bytes memory) {
         return type(OpenfortWalletProxy).creationCode;
@@ -28,6 +34,7 @@ contract OpenfortWalletProxyFactory {
         assembly {
             proxy := create2(0x0, add(0x20, deploymentData), mload(deploymentData), salt)
         }
+        proxyAddress = address(proxy);
         require(address(proxy) != address(0), "Create2 call failed");
 
         if (initializer.length > 0) {
