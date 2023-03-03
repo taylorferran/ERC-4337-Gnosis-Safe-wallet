@@ -10,6 +10,8 @@ error InvalidNonce();
 error NotOwner();
 error ContractHasInitCode();
 error SignatureFailed();
+error DelegateCallFailed();
+error BatchTransactionsFailed();
 
 /// @title Openfort EIP-4337 compatible multisig wallet 
 /// @dev https://eips.ethereum.org/EIPS/eip-4337
@@ -30,22 +32,6 @@ contract OpenfortWallet is GnosisSafe {
         Enum.Operation operation;
     }
 
-    // debug to be removed
-    uint256 public test;
-    address x;
-    address y;
-
-    function getTest() public view returns (uint256) {
-        return test;
-    }
-
-    function getX() public view returns (address) {
-        return x;
-    }
-
-    function getY() public view returns (address) {
-        return y;
-    }
  
     /// @dev Setup function sets initial storage of contract.
     /// @param _owners List of Safe owners.
@@ -69,24 +55,11 @@ contract OpenfortWallet is GnosisSafe {
         address _entryPoint
     ) external {
         entryPoint = _entryPoint;
-        
-        /*
-        execute(address(this), 0, 
-            abi.encodeCall(GnosisSafe.setup, (
-                _owners, _threshold,
-                to, data,
-                fallbackHandler,paymentToken, 
-                payment, paymentReceiver 
-            )),
-            Enum.Operation.DelegateCall, type(uint256).max
-        );*/
-
-        // Setup single wallet for testing for now. 
-        // might need the code above to implement proxy later
-        this.setup(_owners, _threshold,
-                to, data,
-                fallbackHandler,paymentToken, 
-                payment, paymentReceiver);
+        this.setup(
+            _owners, _threshold,
+            to, data,
+            fallbackHandler,paymentToken, 
+            payment, paymentReceiver);
         ++nonce;
     }
 
@@ -94,15 +67,13 @@ contract OpenfortWallet is GnosisSafe {
     /// @param userOp User operation passed in by the entry point
     /// @param userOpHash Hash of the user operation
     /// @param missingAccountFunds Amount to pay entryPoint for transaction execution
+    /// @return sigTimeRange If signature is invalid return 1, based off of EIP spec
     function validateUserOp(UserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds) 
     external returns(uint256 sigTimeRange) { 
 
         requireFromEntryPoint();
         if(userOp.initCode.length == 0){
             bytes32 messageHash = userOpHash.toEthSignedMessageHash();
-
-            (x,y) = this.checkNSignatures(messageHash, bytes(abi.encode(userOp)), 
-                userOp.signature, threshold);
 
             try this.checkNSignatures(messageHash, bytes(abi.encode(userOp)), 
                 userOp.signature, threshold){
@@ -114,7 +85,7 @@ contract OpenfortWallet is GnosisSafe {
                 revert SignatureFailed();
             }
 
-            if(missingAccountFunds > 0) {
+            if(missingAccountFunds > 0 && sigTimeRange == 0) {
                 (bool success,) = payable(entryPoint).call{value : missingAccountFunds, gas : type(uint256).max}("");
                 require(success);
             }
@@ -138,14 +109,14 @@ contract OpenfortWallet is GnosisSafe {
     }
 
     /// @dev Same as above except for batching 
-    /// Might not need this function
     function executeMultipleUserOperationsAsEntryPoint (
         SafeTransaction[] calldata userOperationBatch)
     external {
         requireFromEntryPoint();
         for(uint i = 0; i < userOperationBatch.length;) {
-            execute(userOperationBatch[i].to, userOperationBatch[i].value, 
-                userOperationBatch[i].data, userOperationBatch[i].operation, type(uint256).max);
+            if(!execute(userOperationBatch[i].to, userOperationBatch[i].value, 
+                userOperationBatch[i].data, userOperationBatch[i].operation, type(uint256).max))
+                revert BatchTransactionsFailed();
             unchecked {
                 ++i;
             }
@@ -153,7 +124,7 @@ contract OpenfortWallet is GnosisSafe {
     }
 
     /// @dev Basic delegate call, subject to change
-    /// Also maybe can be removed ?
+    /// @dev Also maybe can be removed as we can delegate call through execute(), needs confirmed
     function executeDelegateCallFromEntryPoint (
         address _contract,
         string calldata _func,
@@ -161,9 +132,10 @@ contract OpenfortWallet is GnosisSafe {
     ) external {
         requireFromEntryPoint();
         (bool success,) = _contract.delegatecall(
-            abi.encodeWithSignature("updateEntryPoint(address)", "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC")
+            abi.encodeWithSignature(_func, _funcParameter)
         );
-        require(success, "DC failed");
+        if(!success)
+            revert DelegateCallFailed();
     }
 
     /// @dev Update trusted entry point
@@ -174,10 +146,9 @@ contract OpenfortWallet is GnosisSafe {
         entryPoint = _entryPoint;
     }
 
-    // Require the function call went through EntryPoint or owner
+    /// @dev Require the function call went through EntryPoint or owner
     function requireFromEntryPoint() internal view {
         if(msg.sender != entryPoint)
             revert EntryPointInvalid();
     }
-
 }
